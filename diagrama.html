@@ -1,0 +1,308 @@
+<title>Rede XOR por dentro</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  /* Layout: coluna única de leitura; cada figura traz a conta feita com os pesos reais do projeto. */
+  :root {
+    --bg: #F2F5F7;
+    --surface: #FFFFFF;
+    --fg: #14202B;
+    --muted: #55656F;
+    --line: #C7D2D9;
+    --pos: #0B7285;
+    --neg: #C0412A;
+    --f-display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+    --f-body: "IBM Plex Sans", system-ui, sans-serif;
+    --f-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0D1418; --surface: #152027; --fg: #E5EDF2; --muted: #93A4AF;
+      --line: #2A3A44; --pos: #4FC4D6; --neg: #F28B70; color-scheme: dark;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #0D1418; --surface: #152027; --fg: #E5EDF2; --muted: #93A4AF;
+    --line: #2A3A44; --pos: #4FC4D6; --neg: #F28B70; color-scheme: dark;
+  }
+
+  body {
+    background: var(--bg); color: var(--fg);
+    font-family: var(--f-body); font-size: 15px; line-height: 1.6;
+    padding-block: 32px 56px;
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  main { max-width: 880px; margin: 0 auto; display: flex; flex-direction: column; gap: 40px; }
+  h1, h2 { font-family: var(--f-display); text-wrap: balance; line-height: 1.15; margin: 0; }
+  h1 { font-size: clamp(30px, 6vw, 44px); letter-spacing: -0.01em; }
+  h2 { font-size: 24px; }
+  p { margin: 0; max-width: 65ch; }
+  code, .mono { font-family: var(--f-mono); font-size: 0.92em; }
+  .eyebrow { font-family: var(--f-mono); font-size: 12px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+  header { display: flex; flex-direction: column; gap: 12px; }
+  header p { color: var(--muted); font-size: 16px; }
+  section { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+  .formula { font-family: var(--f-mono); font-size: 14px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 10px 14px; width: fit-content; max-width: 100%; overflow-x: auto; }
+
+  .legend { display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 13px; color: var(--muted); }
+  .legend span { display: inline-flex; align-items: center; gap: 8px; }
+  .legend i { width: 26px; height: 0; border-top: 3px solid; display: inline-block; }
+  .legend .p { border-color: var(--pos); } .legend .n { border-color: var(--neg); }
+
+  .gates { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+  figure { margin: 0; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+  figcaption { font-size: 14px; color: var(--muted); }
+  figcaption b { color: var(--fg); font-weight: 600; }
+  .fig-title { font-family: var(--f-display); font-size: 17px; font-weight: 600; }
+  .scroll { overflow-x: auto; }
+  svg { display: block; width: 100%; height: auto; }
+  svg.gate { min-width: 340px; } svg.net { min-width: 580px; }
+
+  /* marcas do diagrama */
+  .nd { fill: var(--surface); stroke: var(--fg); stroke-width: 1.5; }
+  .edge { fill: none; stroke-width: 2.4; }
+  .edge.pos { stroke: var(--pos); } .edge.neg { stroke: var(--neg); }
+  .mk.pos { fill: var(--pos); } .mk.neg { fill: var(--neg); }
+  svg text { fill: var(--fg); font-family: var(--f-mono); font-size: 12.5px; text-anchor: middle; }
+  svg text.elabel { font-weight: 500; font-size: 13px; stroke: var(--surface); stroke-width: 5px; paint-order: stroke; stroke-linejoin: round; }
+  svg text.elabel.pos { fill: var(--pos); } svg text.elabel.neg { fill: var(--neg); }
+  svg text.name { font-family: var(--f-body); font-weight: 600; font-size: 13px; }
+  svg text.dim { fill: var(--muted); }
+  svg text.val { font-size: 15px; font-weight: 500; }
+  svg text.big { font-family: var(--f-display); font-size: 24px; font-weight: 600; }
+
+  table { border-collapse: collapse; width: 100%; font-family: var(--f-mono); font-size: 13px; font-variant-numeric: tabular-nums; }
+  th, td { padding: 6px 10px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { font-weight: 500; color: var(--muted); font-size: 12px; }
+  th:first-child, td:first-child { text-align: left; }
+  tr.sel td { background: color-mix(in srgb, var(--pos) 14%, var(--surface)); }
+  .tbl { overflow-x: auto; }
+
+  .picker { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .picker span { font-size: 13px; color: var(--muted); margin-right: 4px; }
+  .picker button { font-family: var(--f-mono); font-size: 14px; color: var(--fg); background: var(--bg); border: 1px solid var(--line); border-radius: 6px; padding: 7px 14px; cursor: pointer; }
+  .picker button[aria-pressed="true"] { background: var(--fg); color: var(--bg); border-color: var(--fg); }
+  .picker button:focus-visible { outline: 2px solid var(--pos); outline-offset: 2px; }
+
+  .calc { font-family: var(--f-mono); font-size: 13px; display: grid; gap: 6px; overflow-x: auto; }
+  .calc div { white-space: nowrap; }
+  .calc b { font-family: var(--f-body); font-weight: 600; display: inline-block; min-width: 56px; }
+
+  .map td:nth-child(n+2), .map th:nth-child(n+2) { text-align: left; }
+  .map td { white-space: normal; }
+</style>
+
+<main>
+  <header>
+    <div class="eyebrow">xor-nn · pesos e vieses</div>
+    <h1>Rede XOR por dentro</h1>
+    <p>Os números que o <code>train_xor.py</code> imprime, desenhados no lugar onde cada um atua: cada seta carrega um peso e cada neurônio carrega um viés.</p>
+  </header>
+
+  <section aria-labelledby="s1">
+    <h2 id="s1">1. Um neurônio: AND e OR</h2>
+    <p>Com <code>--hidden 0</code> a rede é um neurônio só. Ele soma cada entrada vezes o seu peso, soma o viés e passa o resultado pela sigmoide.</p>
+    <div class="formula">z = w1·x1 + w2·x2 + b &nbsp;→&nbsp; y = σ(z)</div>
+    <div class="legend">
+      <span><i class="p"></i> peso positivo: a entrada empurra a saída para 1</span>
+      <span><i class="n"></i> peso negativo: a entrada empurra a saída para 0</span>
+    </div>
+    <div class="gates">
+      <figure>
+        <div class="fig-title">AND (treino com seed 0)</div>
+        <div class="scroll"><svg id="gAND" class="gate" viewBox="0 0 460 210" role="img" aria-label="Neurônio AND: pesos 11,40 e 11,46 e viés −17,17"></svg></div>
+        <div class="tbl"><table id="tAND"></table></div>
+        <figcaption>Os dois pesos são iguais. O viés <b>−17,17</b> exige que a soma passe de ~1,5, então só (1,1) liga a saída.</figcaption>
+      </figure>
+      <figure>
+        <div class="fig-title">OR (treino com seed 0)</div>
+        <div class="scroll"><svg id="gOR" class="gate" viewBox="0 0 460 210" role="img" aria-label="Neurônio OR: pesos 11,71 e 11,85 e viés −5,43"></svg></div>
+        <div class="tbl"><table id="tOR"></table></div>
+        <figcaption>Pesos quase iguais aos do AND. O viés <b>−5,43</b> baixa o limiar para ~0,5, então uma entrada já liga a saída.</figcaption>
+      </figure>
+    </div>
+  </section>
+
+  <section aria-labelledby="s2">
+    <h2 id="s2">2. XOR: dois neurônios escondidos</h2>
+    <p>Nenhuma reta separa o XOR, por isso entra uma camada no meio. Estes são os pesos escolhidos à mão em <code>hand_built.py</code>. Escolha uma entrada e acompanhe os valores.</p>
+    <figure>
+      <div class="picker" role="group" aria-label="Entrada da rede">
+        <span>Entrada (x1, x2):</span>
+        <button type="button" data-i="0">0, 0</button>
+        <button type="button" data-i="1">0, 1</button>
+        <button type="button" data-i="2">1, 0</button>
+        <button type="button" data-i="3">1, 1</button>
+      </div>
+      <div class="scroll"><svg id="net" class="net" viewBox="0 0 640 350" role="img" aria-label="Rede 2-2-1 do XOR. Todos os pesos da primeira camada valem 10. Vieses dos escondidos: −5 e −15. Pesos da saída: 10 e −10. Viés da saída: −10."></svg></div>
+      <div class="calc" id="calc" aria-live="polite"></div>
+      <figcaption>O neurônio <b>n1</b> liga quando alguma entrada vale 1 (OR). O <b>n2</b> liga só quando as duas valem 1 (AND). A saída soma <b>+10·n1</b> e <b>−10·n2</b>, com viés −10, e só passa de zero quando n1 liga e n2 não. O preenchimento do círculo mostra a ativação: azul-petróleo para +1, coral para −1.</figcaption>
+    </figure>
+    <div class="tbl"><table id="tNet"></table></div>
+  </section>
+
+  <section aria-labelledby="s3">
+    <h2 id="s3">3. Onde cada número aparece no PyTorch</h2>
+    <p>É o que <code>model.named_parameters()</code> lista para <code>--hidden 2</code>, com os valores da rede feita à mão.</p>
+    <div class="tbl">
+      <table class="map">
+        <tr><th>Nome</th><th>Formato</th><th>No diagrama</th><th>Valor</th></tr>
+        <tr><td>0.weight</td><td>(2, 2)</td><td>setas das entradas para n1 e n2</td><td>[[10, 10], [10, 10]]</td></tr>
+        <tr><td>0.bias</td><td>(2)</td><td>viés de n1 e de n2</td><td>[−5, −15]</td></tr>
+        <tr><td>2.weight</td><td>(1, 2)</td><td>setas de n1 e n2 para a saída</td><td>[[10, −10]]</td></tr>
+        <tr><td>2.bias</td><td>(1)</td><td>viés da saída</td><td>[−10]</td></tr>
+      </table>
+    </div>
+    <p>São 9 parâmetros (4 + 2 + 2 + 1). Com <code>--hidden 4</code> são 17, mas a lógica é a mesma: cada neurônio escondido é uma reta, e a saída combina as retas.</p>
+  </section>
+</main>
+
+<script>
+(function () {
+  var NS = "http://www.w3.org/2000/svg";
+  var fmt = function (n, d) { return n.toFixed(d == null ? 2 : d).replace(".", ",").replace("-", "−"); };
+  var sig = function (z) { return 1 / (1 + Math.exp(-z)); };
+  function S(tag, attrs, txt) {
+    var e = document.createElementNS(NS, tag);
+    for (var k in attrs) e.setAttribute(k, attrs[k]);
+    if (txt != null) e.textContent = txt;
+    return e;
+  }
+  function markers(svg, pre) {
+    var d = S("defs");
+    ["pos", "neg"].forEach(function (c) {
+      var m = S("marker", { id: pre + c, markerWidth: 9, markerHeight: 9, refX: 8, refY: 4.5, orient: "auto", markerUnits: "userSpaceOnUse" });
+      m.appendChild(S("path", { d: "M0,0 L9,4.5 L0,9 z", "class": "mk " + c }));
+      d.appendChild(m);
+    });
+    svg.appendChild(d);
+  }
+  function edge(svg, pre, a, b, w, t, off, label) {
+    var dx = b.x - a.x, dy = b.y - a.y, d = Math.hypot(dx, dy), ux = dx / d, uy = dy / d;
+    var c = w >= 0 ? "pos" : "neg";
+    svg.appendChild(S("line", {
+      "class": "edge " + c,
+      x1: a.x + ux * a.r, y1: a.y + uy * a.r,
+      x2: b.x - ux * (b.r + 3), y2: b.y - uy * (b.r + 3),
+      "marker-end": "url(#" + pre + c + ")"
+    }));
+    var px = a.x + dx * t + (-uy) * off, py = a.y + dy * t + ux * off;
+    svg.appendChild(S("text", { "class": "elabel " + c, x: px, y: py + 4 }, label == null ? fmt(w, 2) : label));
+  }
+  function node(svg, n, fill) {
+    var c = S("circle", { "class": "nd", cx: n.x, cy: n.y, r: n.r });
+    if (fill) c.style.fill = fill;
+    svg.appendChild(c);
+    return c;
+  }
+
+  /* ---------- 1. neurônio único ---------- */
+  function gate(id, tid, w1, w2, b) {
+    var svg = document.getElementById(id), pre = id + "-";
+    markers(svg, pre);
+    var x1 = { x: 50, y: 55, r: 22 }, x2 = { x: 50, y: 155, r: 22 };
+    var nn = { x: 250, y: 105, r: 40 }, y = { x: 410, y: 105, r: 24 };
+    edge(svg, pre, x1, nn, w1, 0.5, -11);
+    edge(svg, pre, x2, nn, w2, 0.5, 14);
+    edge(svg, pre, nn, y, 1, 0.5, -11, "σ(z)");
+    [x1, x2, nn, y].forEach(function (n) { node(svg, n); });
+    svg.appendChild(S("text", { "class": "val dim", x: x1.x, y: x1.y + 5 }, "x1"));
+    svg.appendChild(S("text", { "class": "val dim", x: x2.x, y: x2.y + 5 }, "x2"));
+    svg.appendChild(S("text", { "class": "big", x: nn.x, y: nn.y + 8 }, "σ"));
+    svg.appendChild(S("text", { "class": "val", x: y.x, y: y.y + 5 }, "y"));
+    svg.appendChild(S("text", { "class": "name", x: nn.x, y: nn.y - nn.r - 12 }, "neurônio"));
+    svg.appendChild(S("text", { x: nn.x, y: nn.y + nn.r + 22 }, "viés b = " + fmt(b, 2)));
+    var rows = "<tr><th>x1, x2</th><th>z</th><th>y = σ(z)</th></tr>";
+    [[0, 0], [0, 1], [1, 0], [1, 1]].forEach(function (p) {
+      var z = w1 * p[0] + w2 * p[1] + b;
+      rows += "<tr><td>" + p[0] + ", " + p[1] + "</td><td>" + fmt(z, 2) + "</td><td>" + fmt(sig(z), 4) + "</td></tr>";
+    });
+    document.getElementById(tid).innerHTML = rows;
+  }
+  gate("gAND", "tAND", 11.3967, 11.4551, -17.1705);
+  gate("gOR", "tOR", 11.7069, 11.8478, -5.4299);
+
+  /* ---------- 2. rede XOR feita à mão ---------- */
+  var WH = [[10, 10], [10, 10]], BH = [-5, -15], WO = [10, -10], BO = -10;
+  var INPUTS = [[0, 0], [0, 1], [1, 0], [1, 1]], EXP = [0, 1, 1, 0];
+  function forward(p) {
+    var zh = WH.map(function (w, i) { return w[0] * p[0] + w[1] * p[1] + BH[i]; });
+    var ah = zh.map(Math.tanh);
+    var zo = WO[0] * ah[0] + WO[1] * ah[1] + BO;
+    return { zh: zh, ah: ah, zo: zo, y: sig(zo) };
+  }
+
+  var svg = document.getElementById("net"), pre = "net-";
+  markers(svg, pre);
+  var N = {
+    i1: { x: 60, y: 110, r: 26 }, i2: { x: 60, y: 250, r: 26 },
+    h1: { x: 290, y: 110, r: 32 }, h2: { x: 290, y: 250, r: 32 },
+    o: { x: 550, y: 180, r: 36 }
+  };
+  edge(svg, pre, N.i1, N.h1, WH[0][0], 0.5, -9);
+  edge(svg, pre, N.i2, N.h2, WH[1][1], 0.5, 15);
+  edge(svg, pre, N.i1, N.h2, WH[1][0], 0.2, 0);
+  edge(svg, pre, N.i2, N.h1, WH[0][1], 0.2, 0);
+  edge(svg, pre, N.h1, N.o, WO[0], 0.5, -10);
+  edge(svg, pre, N.h2, N.o, WO[1], 0.5, 14);
+
+  var circ = {}, vals = {}, zt = {};
+  ["i1", "i2", "h1", "h2", "o"].forEach(function (k) {
+    circ[k] = node(svg, N[k]);
+    vals[k] = S("text", { "class": "val", x: N[k].x, y: N[k].y + 5 }, "");
+    svg.appendChild(vals[k]);
+  });
+  var names = { i1: "x1", i2: "x2", h1: "n1 · OR", h2: "n2 · AND", o: "saída" };
+  Object.keys(names).forEach(function (k) {
+    svg.appendChild(S("text", { "class": "name", x: N[k].x, y: N[k].y - N[k].r - 11 }, names[k]));
+  });
+  var bias = { h1: BH[0], h2: BH[1], o: BO };
+  ["h1", "h2", "o"].forEach(function (k) {
+    zt[k] = S("text", { "class": "dim", x: N[k].x, y: N[k].y + N[k].r + 19 }, "");
+    svg.appendChild(zt[k]);
+    svg.appendChild(S("text", { x: N[k].x, y: N[k].y + N[k].r + 37 }, "viés b = " + fmt(bias[k], 0)));
+  });
+  svg.appendChild(S("text", { "class": "dim", x: 175, y: 332 }, "tanh"));
+  svg.appendChild(S("text", { "class": "dim", x: 420, y: 332 }, "sigmoide"));
+
+  function tint(a) {
+    var c = a >= 0 ? "var(--pos)" : "var(--neg)";
+    return "color-mix(in srgb, " + c + " " + Math.round(Math.abs(a) * 38) + "%, var(--surface))";
+  }
+  var calc = document.getElementById("calc");
+  var tbl = document.getElementById("tNet");
+  var buttons = Array.prototype.slice.call(document.querySelectorAll(".picker button"));
+
+  var rows = "<tr><th>x1, x2</th><th>n1</th><th>n2</th><th>saída</th><th>esperado</th></tr>";
+  INPUTS.forEach(function (p, i) {
+    var r = forward(p);
+    rows += '<tr data-r="' + i + '"><td>' + p[0] + ", " + p[1] + "</td><td>" + fmt(r.ah[0], 4) + "</td><td>" +
+      fmt(r.ah[1], 4) + "</td><td>" + fmt(r.y, 4) + "</td><td>" + EXP[i] + "</td></tr>";
+  });
+  tbl.innerHTML = rows;
+
+  function select(i) {
+    var p = INPUTS[i], r = forward(p);
+    vals.i1.textContent = p[0]; vals.i2.textContent = p[1];
+    circ.i1.style.fill = p[0] ? tint(1) : ""; circ.i2.style.fill = p[1] ? tint(1) : "";
+    vals.h1.textContent = fmt(r.ah[0], 2); vals.h2.textContent = fmt(r.ah[1], 2);
+    circ.h1.style.fill = tint(r.ah[0]); circ.h2.style.fill = tint(r.ah[1]);
+    vals.o.textContent = fmt(r.y, 2);
+    circ.o.style.fill = tint(r.y * 2 - 1);
+    zt.h1.textContent = "z = " + fmt(r.zh[0], 0);
+    zt.h2.textContent = "z = " + fmt(r.zh[1], 0);
+    zt.o.textContent = "z = " + fmt(r.zo, 2);
+    calc.innerHTML =
+      "<div><b>n1</b>tanh(10·" + p[0] + " + 10·" + p[1] + " − 5) = tanh(" + fmt(r.zh[0], 0) + ") = " + fmt(r.ah[0], 2) + "</div>" +
+      "<div><b>n2</b>tanh(10·" + p[0] + " + 10·" + p[1] + " − 15) = tanh(" + fmt(r.zh[1], 0) + ") = " + fmt(r.ah[1], 2) + "</div>" +
+      "<div><b>saída</b>σ(10·" + fmt(r.ah[0], 2) + " − 10·" + fmt(r.ah[1], 2) + " − 10) = σ(" + fmt(r.zo, 2) + ") = " + fmt(r.y, 4) + " → " + Math.round(r.y) + " (esperado " + EXP[i] + ")</div>";
+    buttons.forEach(function (b) { b.setAttribute("aria-pressed", String(+b.dataset.i === i)); });
+    Array.prototype.forEach.call(tbl.querySelectorAll("tr[data-r]"), function (tr) {
+      tr.className = +tr.dataset.r === i ? "sel" : "";
+    });
+  }
+  buttons.forEach(function (b) { b.addEventListener("click", function () { select(+b.dataset.i); }); });
+  select(1);
+})();
+</script>
